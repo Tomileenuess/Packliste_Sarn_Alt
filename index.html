@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Packliste Sarn</title>
+  <meta name="theme-color" content="#1e293b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { -webkit-tap-highlight-color: transparent; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen pb-24 select-none">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-4 py-3 shadow-sm">
+    <div class="max-w-xl mx-auto flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <span class="text-xl">🏔️</span>
+        <div>
+          <h1 class="text-base font-bold leading-none">Packliste Sarn</h1>
+          <span id="cloudStatus" class="text-xs text-slate-500 dark:text-slate-400">Lokal</span>
+        </div>
+      </div>
+      <div class="flex items-center space-x-2">
+        <button id="btnManualSync" onclick="syncWithCloud()" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition" title="Synchronisieren">
+          <svg id="syncIcon" class="w-5 h-5 text-slate-600 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.033 8.033 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+        </button>
+        <button onclick="openSettings()" class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95 transition" title="Einstellungen">
+          <svg class="w-5 h-5 text-slate-600 dark:text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Fahrtrichtung Umschalter -->
+  <div class="max-w-xl mx-auto px-4 pt-3">
+    <div class="grid grid-cols-2 gap-2 bg-slate-200 dark:bg-slate-800 p-1 rounded-xl">
+      <button id="btnDirSarn" onclick="setDirection('sarn')" class="py-2 text-sm font-semibold rounded-lg transition shadow-sm bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300">
+        🚗 Nach Sarn <span id="countSarn" class="ml-1 text-xs opacity-75"></span>
+      </button>
+      <button id="btnDirHome" onclick="setDirection('home')" class="py-2 text-sm font-semibold rounded-lg transition text-slate-600 dark:text-slate-400">
+        🏠 Nach Hause <span id="countHome" class="ml-1 text-xs opacity-75"></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Eingabe- & Zuweisungszeile -->
+  <div class="max-w-xl mx-auto px-4 pt-3">
+    <div class="bg-white dark:bg-slate-800 p-3 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 space-y-2">
+      <div class="relative">
+        <input id="itemInput" type="text" placeholder="Artikel hinzufügen oder suchen..." 
+               autocomplete="off" 
+               onkeydown="handleInputKey(event)"
+               oninput="filterCatalogSuggestions(this.value)"
+               class="w-full pl-3 pr-10 py-2.5 bg-slate-100 dark:bg-slate-700/50 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 dark:placeholder-slate-400">
+        <button onclick="addItemFromInput()" class="absolute right-1.5 top-1.5 p-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-lg active:scale-95 transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Autocomplete Vorschlagsliste -->
+      <div id="autocompleteList" class="hidden flex-wrap gap-1.5 max-h-28 overflow-y-auto no-scrollbar pt-1"></div>
+
+      <!-- Zuweisen für -->
+      <div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar pt-1">
+        <span class="text-xs text-slate-400 shrink-0 mr-1">Für:</span>
+        <button type="button" onclick="setTargetPerson('Haushalt')" class="target-chip px-2.5 py-1 text-xs rounded-full font-medium transition shrink-0 bg-teal-600 text-white" data-person="Haushalt">Haushalt</button>
+        <button type="button" onclick="setTargetPerson('Lionel')" class="target-chip px-2.5 py-1 text-xs rounded-full font-medium transition shrink-0 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" data-person="Lionel">Lionel</button>
+        <button type="button" onclick="setTargetPerson('Luke')" class="target-chip px-2.5 py-1 text-xs rounded-full font-medium transition shrink-0 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" data-person="Luke">Luke</button>
+        <button type="button" onclick="setTargetPerson('Bettina')" class="target-chip px-2.5 py-1 text-xs rounded-full font-medium transition shrink-0 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" data-person="Bettina">Bettina</button>
+        <button type="button" onclick="setTargetPerson('Tomi')" class="target-chip px-2.5 py-1 text-xs rounded-full font-medium transition shrink-0 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" data-person="Tomi">Tomi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ansichts-Filter -->
+  <div class="max-w-xl mx-auto px-4 pt-3">
+    <div class="flex items-center space-x-1 overflow-x-auto no-scrollbar py-1">
+      <button onclick="setViewFilter('Alle')" class="filter-chip px-3 py-1 text-xs rounded-lg font-medium transition shrink-0 bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900" data-filter="Alle">Alle</button>
+      <button onclick="setViewFilter('Haushalt')" class="filter-chip px-3 py-1 text-xs rounded-lg font-medium transition shrink-0 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700" data-filter="Haushalt">Haushalt</button>
+      <button onclick="setViewFilter('Lionel')" class="filter-chip px-3 py-1 text-xs rounded-lg font-medium transition shrink-0 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700" data-filter="Lionel">Lionel</button>
+      <button onclick="setViewFilter('Luke')" class="filter-chip px-3 py-1 text-xs rounded-lg font-medium transition shrink-0 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700" data-filter="Luke">Luke</button>
+      <button onclick="setViewFilter('Bettina')" class="filter-chip px-3 py-1 text-xs rounded-lg font-medium transition shrink-0 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700" data-filter="Bettina">Bettina</button>
+      <button onclick="setViewFilter('Tomi')" class="filter-chip px-3 py-1 text-xs rounded-lg font-medium transition shrink-0 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700" data-filter="Tomi">Tomi</button>
+    </div>
+  </div>
+
+  <!-- Hauptliste: Einzupacken -->
+  <main class="max-w-xl mx-auto px-4 pt-3 space-y-5">
+    <section>
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-xs font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">Einzupacken</h2>
+        <span id="activeCount" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300">0</span>
+      </div>
+      <div id="activeTiles" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+      <div id="activeEmpty" class="hidden text-center py-8 text-sm text-slate-400 dark:text-slate-500 bg-white/50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+        Alles eingepackt 🎉
+      </div>
+    </section>
+
+    <!-- Bereits eingepackt (Erledigt) -->
+    <section id="packedSection" class="hidden">
+      <button onclick="togglePackedSection()" class="flex items-center justify-between w-full text-xs font-bold tracking-wider uppercase text-slate-400 dark:text-slate-500 mb-2">
+        <span>Bereits eingepackt (<span id="packedCount">0</span>)</span>
+        <span id="packedArrow" class="text-base">▾</span>
+      </button>
+      <div id="packedTiles" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+    </section>
+
+    <!-- Katalog (Inaktive Artikel zum schnellen Antippen) -->
+    <section class="pt-4 border-t border-slate-200 dark:border-slate-800">
+      <h2 class="text-xs font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400 mb-2">Katalog & Schnellwahl</h2>
+      <div id="catalogTiles" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
+    </section>
+  </main>
+
+  <!-- Einstellungen Modal -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold">⚙️ Cloud & Synchronisation</h3>
+        <button onclick="closeSettings()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <div class="space-y-1">
+        <label class="text-xs font-semibold text-slate-600 dark:text-slate-400">Google Apps Script Web-App URL:</label>
+        <input id="scriptUrlInput" type="url" placeholder="https://script.google.com/macros/s/.../exec"
+               class="w-full px-3 py-2 text-xs bg-slate-100 dark:bg-slate-700/60 rounded-xl border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono">
+      </div>
+
+      <div class="flex space-x-2">
+        <button onclick="saveSettings()" class="flex-1 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold active:scale-95 transition">URL Speichern</button>
+        <button onclick="syncWithCloud()" class="flex-1 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold active:scale-95 transition">Jetzt Synchronisieren</button>
+      </div>
+
+      <div class="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
+        <button onclick="resetCurrentTrip()" class="w-full py-2 bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 rounded-xl text-xs font-semibold active:scale-95 transition">Aktuelle Liste zurücksetzen</button>
+      </div>
+
+      <div class="pt-2 text-right">
+        <button onclick="closeSettings()" class="text-xs text-slate-500 dark:text-slate-400 font-medium">Schliessen</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- STAMM-KATALOG AUS EXCEL ---
+    const DEFAULT_CATALOG = [
+      // Haushalt
+      { title: "Frottetuch Hand", category: "Haushalt", person: "Haushalt", icon: "🧺" },
+      { title: "Frottetuch Duschen", category: "Haushalt", person: "Haushalt", icon: "🛁" },
+      { title: "Waschlappen", category: "Haushalt", person: "Haushalt", icon: "🧽" },
+      { title: "Fusstuch Dusche", category: "Haushalt", person: "Haushalt", icon: "👣" },
+      { title: "Küche Lumpen", category: "Haushalt", person: "Haushalt", icon: "🧻" },
+      { title: "Küche Tüechli", category: "Haushalt", person: "Haushalt", icon: "🍽️" },
+      { title: "Fixleintücher 90", category: "Haushalt", person: "Haushalt", icon: "🛏️" },
+      { title: "Fixleintücher 160", category: "Haushalt", person: "Haushalt", icon: "🛏️" },
+      { title: "Bettzeug Kids", category: "Haushalt", person: "Haushalt", icon: "🛌" },
+      { title: "Bettzeug Eltern", category: "Haushalt", person: "Haushalt", icon: "🛌" },
+      { title: "Bettzeug Gäste", category: "Haushalt", person: "Haushalt", icon: "🛌" },
+      { title: "Sonnencreme", category: "Haushalt", person: "Haushalt", icon: "🧴" },
+      { title: "Kleenex", category: "Haushalt", person: "Haushalt", icon: "🤧" },
+      { title: "Haushaltspapier", category: "Haushalt", person: "Haushalt", icon: "🧻" },
+      { title: "Bodenmopp", category: "Haushalt", person: "Haushalt", icon: "🧹" },
+      { title: "Holz", category: "Haushalt", person: "Haushalt", icon: "🪵" },
+      { title: "neue Packliste", category: "Haushalt", person: "Haushalt", icon: "📝" },
+
+      // Kleidung & Sport
+      { title: "Pijama", category: "Wäsche", person: "Haushalt", icon: "🌙" },
+      { title: "Unterhosen", category: "Wäsche", person: "Haushalt", icon: "🩲" },
+      { title: "Singlet", category: "Wäsche", person: "Haushalt", icon: "🎽" },
+      { title: "Socken", category: "Wäsche", person: "Haushalt", icon: "🧦" },
+      { title: "Wandersocken", category: "Sport", person: "Haushalt", icon: "🥾" },
+      { title: "Skisocken", category: "Sport", person: "Haushalt", icon: "⛷️" },
+      { title: "Jeans", category: "Kleidung", person: "Haushalt", icon: "👖" },
+      { title: "Hosen", category: "Kleidung", person: "Haushalt", icon: "👖" },
+      { title: "Trainerhosen", category: "Kleidung", person: "Haushalt", icon: "🏃" },
+      { title: "Hoodie", category: "Kleidung", person: "Haushalt", icon: "🧥" },
+      { title: "Shorts", category: "Kleidung", person: "Haushalt", icon: "🩳" },
+      { title: "T-Shirt kurz", category: "Kleidung", person: "Haushalt", icon: "👕" },
+      { title: "T-shirt lang", category: "Kleidung", person: "Haushalt", icon: "👔" },
+      { title: "Pullover", category: "Kleidung", person: "Haushalt", icon: "🧶" },
+      { title: "Fleece", category: "Kleidung", person: "Haushalt", icon: "🧥" },
+      { title: "Badehose", category: "Sport", person: "Haushalt", icon: "🩳" },
+      { title: "Bikini", category: "Sport", person: "Bettina", icon: "👙" },
+      { title: "BH", category: "Wäsche", person: "Bettina", icon: "👙" },
+      { title: "Bikehose", category: "Sport", person: "Tomi", icon: "🚴" },
+      { title: "Merino kurz", category: "Sport", person: "Haushalt", icon: "🐑" },
+      { title: "Merino lang", category: "Sport", person: "Haushalt", icon: "🐑" },
+      { title: "Lange Unterhosen", category: "Wäsche", person: "Haushalt", icon: "❄️" },
+      { title: "Wanderhose", category: "Sport", person: "Haushalt", icon: "🥾" },
+      { title: "Rashy", category: "Sport", person: "Haushalt", icon: "🏄" },
+      { title: "Hut", category: "Sport", person: "Haushalt", icon: "🧢" },
+      { title: "Kappe", category: "Sport", person: "Haushalt", icon: "🧢" },
+      { title: "Helmstrumpf", category: "Sport", person: "Haushalt", icon: "⛷️" },
+      { title: "Thermo Oberteil", category: "Sport", person: "Haushalt", icon: "❄️" },
+      { title: "Thermo Hosen", category: "Sport", person: "Haushalt", icon: "❄️" },
+      { title: "Skijacke", category: "Sport", person: "Haushalt", icon: "⛷️" },
+      { title: "Skihosen", category: "Sport", person: "Haushalt", icon: "⛷️" },
+
+      // Feste Retour-Artikel
+      { title: "Brille", category: "Retour", person: "Haushalt", icon: "👓" },
+      { title: "Kompost", category: "Retour", person: "Haushalt", icon: "🌱" },
+      { title: "Kuscheltierli", category: "Retour", person: "Haushalt", icon: "🧸" },
+      { title: "Medis", category: "Retour", person: "Haushalt", icon: "💊" },
+      { title: "Wanderschuhe", category: "Retour", person: "Haushalt", icon: "🥾" },
+      { title: "Windjacken", category: "Retour", person: "Haushalt", icon: "🧥" },
+      { title: "Keens", category: "Retour", person: "Haushalt", icon: "👟" },
+      { title: "Winterschuhe", category: "Retour", person: "Haushalt", icon: "🥾" },
+      { title: "Schlittschuhe", category: "Retour", person: "Haushalt", icon: "⛸️" },
+      { title: "Spange Lionel", category: "Retour", person: "Lionel", icon: "🦷" }
+    ];
+
+    // --- APP STATUS & SPEICHER ---
+    let state = {
+      direction: 'sarn', // 'sarn' | 'home'
+      targetPerson: 'Haushalt',
+      viewFilter: 'Alle',
+      items: [],
+      scriptUrl: localStorage.getItem('sarn_script_url') || '',
+      packedCollapsed: false
+    };
+
+    function init() {
+      const savedItems = localStorage.getItem('sarn_items');
+      if (savedItems) {
+        try { state.items = JSON.parse(savedItems); } catch(e) { state.items = []; }
+      }
+      
+      // Falls noch nie Items angelegt wurden: Initialisiere Basiseinträge
+      if (state.items.length === 0) {
+        initDefaultItems();
+      }
+
+      document.getElementById('scriptUrlInput').value = state.scriptUrl;
+      updateCloudStatusText();
+      render();
+
+      // Automatischer Cloud-Sync beim Start (falls URL hinterlegt)
+      if (state.scriptUrl) {
+        syncWithCloud();
+      }
+    }
+
+    function initDefaultItems() {
+      // Initiale Standard-Einträge für Hinfahrt & Retour
+      const initSarn = ["Frottetuch Hand", "Küche Tüechli", "Fixleintücher 90", "Haushaltspapier"];
+      const initHome = ["Kompost", "Brille", "Kuscheltierli"];
+
+      initSarn.forEach(t => {
+        state.items.push(createItemObject(t, 'Haushalt', 'sarn', 'open'));
+      });
+      initHome.forEach(t => {
+        state.items.push(createItemObject(t, 'Haushalt', 'home', 'open'));
+      });
+      saveLocal();
+    }
+
+    function createItemObject(title, person, direction, status) {
+      const catEntry = DEFAULT_CATALOG.find(c => c.title.toLowerCase() === title.toLowerCase());
+      return {
+        id: 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+        direction: direction || state.direction,
+        title: title,
+        person: person || state.targetPerson,
+        status: status || 'open',
+        category: catEntry ? catEntry.category : 'Allgemein',
+        icon: catEntry ? catEntry.icon : '📦',
+        updatedAt: new Date().toISOString()
+      };
+    }
+
+    function saveLocal() {
+      localStorage.setItem('sarn_items', JSON.stringify(state.items));
+    }
+
+    // --- NAVIGATION & FILTER ---
+    function setDirection(dir) {
+      state.direction = dir;
+      document.getElementById('btnDirSarn').className = dir === 'sarn'
+        ? 'py-2 text-sm font-semibold rounded-lg transition shadow-sm bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300'
+        : 'py-2 text-sm font-semibold rounded-lg transition text-slate-600 dark:text-slate-400';
+      document.getElementById('btnDirHome').className = dir === 'home'
+        ? 'py-2 text-sm font-semibold rounded-lg transition shadow-sm bg-white dark:bg-slate-700 text-teal-700 dark:text-teal-300'
+        : 'py-2 text-sm font-semibold rounded-lg transition text-slate-600 dark:text-slate-400';
+      render();
+    }
+
+    function setTargetPerson(person) {
+      state.targetPerson = person;
+      document.querySelectorAll('.target-chip').forEach(btn => {
+        if (btn.dataset.person === person) {
+          btn.className = 'target-chip px-2.5 py-1 text-xs rounded-full font-medium transition shrink-0 bg-teal-600 text-white';
+        } else {
+          btn.className = 'target-chip px-2.5 py-1 text-xs rounded-full font-medium transition shrink-0 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300';
+        }
+      });
+    }
+
+    function setViewFilter(person) {
+      state.viewFilter = person;
+      document.querySelectorAll('.filter-chip').forEach(btn => {
+        if (btn.dataset.filter === person) {
+          btn.className = 'filter-chip px-3 py-1 text-xs rounded-lg font-medium transition shrink-0 bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900';
+        } else {
+          btn.className = 'filter-chip px-3 py-1 text-xs rounded-lg font-medium transition shrink-0 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700';
+        }
+      });
+      render();
+    }
+
+    // --- ARTIKEL AKTIONEN (BRING-PRINZIP) ---
+    function toggleItemStatus(id) {
+      const item = state.items.find(i => i.id === id);
+      if (item) {
+        item.status = item.status === 'open' ? 'packed' : 'open';
+        item.updatedAt = new Date().toISOString();
+        saveLocal();
+        render();
+        triggerAutoSyncDebounced();
+      }
+    }
+
+    function addFromCatalog(title, forcedPerson) {
+      const targetPerson = forcedPerson || state.targetPerson;
+      // Prüfen, ob bereits auf der aktuellen Liste
+      const existing = state.items.find(i => 
+        i.direction === state.direction && 
+        i.title.toLowerCase() === title.toLowerCase() && 
+        i.person === targetPerson &&
+        i.status !== 'deleted'
+      );
+
+      if (existing) {
+        if (existing.status === 'packed') {
+          existing.status = 'open';
+          existing.updatedAt = new Date().toISOString();
+        }
+      } else {
+        state.items.push(createItemObject(title, targetPerson, state.direction, 'open'));
+      }
+      saveLocal();
+      render();
+      triggerAutoSyncDebounced();
+    }
+
+    function addItemFromInput() {
+      const input = document.getElementById('itemInput');
+      const val = input.value.trim();
+      if (!val) return;
+      addFromCatalog(val);
+      input.value = '';
+      document.getElementById('autocompleteList').classList.add('hidden');
+    }
+
+    function handleInputKey(e) {
+      if (e.key === 'Enter') {
+        addItemFromInput();
+      }
+    }
+
+    function filterCatalogSuggestions(query) {
+      const box = document.getElementById('autocompleteList');
+      if (!query || query.length < 1) {
+        box.classList.add('hidden');
+        box.innerHTML = '';
+        return;
+      }
+
+      const q = query.toLowerCase();
+      const matches = DEFAULT_CATALOG.filter(c => c.title.toLowerCase().includes(q));
+
+      if (matches.length === 0) {
+        box.classList.add('hidden');
+        return;
+      }
+
+      box.innerHTML = matches.slice(0, 6).map(m => `
+        <button type="button" onclick="addFromCatalog('${m.title}')" class="px-2.5 py-1 bg-slate-100 dark:bg-slate-700 hover:bg-teal-50 dark:hover:bg-slate-600 rounded-lg text-xs font-medium flex items-center space-x-1 transition">
+          <span>${m.icon || '📦'}</span>
+          <span>${m.title}</span>
+        </button>
+      `).join('');
+      box.classList.remove('hidden');
+    }
+
+    function togglePackedSection() {
+      state.packedCollapsed = !state.packedCollapsed;
+      document.getElementById('packedTiles').classList.toggle('hidden', state.packedCollapsed);
+      document.getElementById('packedArrow').textContent = state.packedCollapsed ? '▸' : '▾';
+    }
+
+    // --- RENDERING ---
+    function render() {
+      // Filter nach Richtung
+      const dirItems = state.items.filter(i => i.direction === state.direction && i.status !== 'deleted');
+
+      // Filter nach Person
+      const displayItems = state.viewFilter === 'Alle' 
+        ? dirItems 
+        : dirItems.filter(i => i.person === state.viewFilter);
+
+      const active = displayItems.filter(i => i.status === 'open');
+      const packed = displayItems.filter(i => i.status === 'packed');
+
+      // Zähler Header
+      const totalSarnOpen = state.items.filter(i => i.direction === 'sarn' && i.status === 'open').length;
+      const totalHomeOpen = state.items.filter(i => i.direction === 'home' && i.status === 'open').length;
+      document.getElementById('countSarn').textContent = totalSarnOpen > 0 ? `(${totalSarnOpen})` : '';
+      document.getElementById('countHome').textContent = totalHomeOpen > 0 ? `(${totalHomeOpen})` : '';
+
+      // Einzupacken Render
+      const activeContainer = document.getElementById('activeTiles');
+      const emptyNotice = document.getElementById('activeEmpty');
+      document.getElementById('activeCount').textContent = active.length;
+
+      if (active.length === 0) {
+        activeContainer.innerHTML = '';
+        emptyNotice.classList.remove('hidden');
+      } else {
+        emptyNotice.classList.add('hidden');
+        activeContainer.innerHTML = active.map(item => `
+          <div onclick="toggleItemStatus('${item.id}')" class="bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-700 shadow-sm active:scale-95 transition cursor-pointer flex flex-col justify-between h-24">
+            <div class="flex items-start justify-between">
+              <span class="text-2xl">${item.icon || '📦'}</span>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${getPersonBadgeClass(item.person)}">${item.person}</span>
+            </div>
+            <div class="font-semibold text-xs leading-tight line-clamp-2">${item.title}</div>
+          </div>
+        `).join('');
+      }
+
+      // Bereits eingepackt Render
+      const packedSection = document.getElementById('packedSection');
+      const packedContainer = document.getElementById('packedTiles');
+      document.getElementById('packedCount').textContent = packed.length;
+
+      if (packed.length > 0) {
+        packedSection.classList.remove('hidden');
+        packedContainer.innerHTML = packed.map(item => `
+          <div onclick="toggleItemStatus('${item.id}')" class="bg-slate-200/50 dark:bg-slate-800/40 p-2.5 rounded-2xl border border-transparent dark:border-slate-800/60 opacity-60 active:scale-95 transition cursor-pointer flex items-center space-x-2">
+            <span class="text-base">${item.icon || '📦'}</span>
+            <div class="flex-1 min-w-0">
+              <div class="text-xs font-medium truncate line-through text-slate-500">${item.title}</div>
+              <div class="text-[9px] text-slate-400">${item.person}</div>
+            </div>
+            <span class="text-xs text-teal-600 dark:text-teal-400 font-bold">✓</span>
+          </div>
+        `).join('');
+      } else {
+        packedSection.classList.add('hidden');
+      }
+
+      // Katalog Render (nur Artikel, die aktuell noch nicht aktiv auf der Liste sind)
+      renderCatalog();
+    }
+
+    function renderCatalog() {
+      const activeTitles = new Set(
+        state.items
+          .filter(i => i.direction === state.direction && i.status === 'open')
+          .map(i => i.title.toLowerCase())
+      );
+
+      const catalogContainer = document.getElementById('catalogTiles');
+      
+      // Filter Katalog nach ausgewählter Richtung
+      let relevantCatalog = DEFAULT_CATALOG;
+      if (state.direction === 'home') {
+        relevantCatalog = DEFAULT_CATALOG.filter(c => c.category === 'Retour' || ['Medis', 'Brille', 'Kompost'].includes(c.title));
+      }
+
+      const available = relevantCatalog.filter(c => !activeTitles.has(c.title.toLowerCase()));
+
+      catalogContainer.innerHTML = available.map(c => `
+        <div onclick="addFromCatalog('${c.title}', '${c.person !== 'Haushalt' ? c.person : state.targetPerson}')" class="bg-white/60 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 p-2.5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 text-left active:scale-95 transition cursor-pointer flex items-center space-x-2">
+          <span class="text-lg">${c.icon || '📦'}</span>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-medium truncate text-slate-700 dark:text-slate-300">${c.title}</div>
+            <div class="text-[9px] text-slate-400">${c.category}</div>
+          </div>
+          <span class="text-xs text-slate-400">+</span>
+        </div>
+      `).join('');
+    }
+
+    function getPersonBadgeClass(person) {
+      switch(person) {
+        case 'Lionel': return 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300';
+        case 'Luke': return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+        case 'Bettina': return 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300';
+        case 'Tomi': return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300';
+        default: return 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+      }
+    }
+
+    // --- ROBUSTE CLOUD SYNCHRONISATION (2-WEGE MERGE) ---
+    let syncTimeout = null;
+    function triggerAutoSyncDebounced() {
+      if (!state.scriptUrl) return;
+      clearTimeout(syncTimeout);
+      syncTimeout = setTimeout(() => {
+        syncWithCloud(true);
+      }, 1500);
+    }
+
+    async function syncWithCloud(silent = false) {
+      if (!state.scriptUrl) {
+        if (!silent) openSettings();
+        return;
+      }
+
+      const syncIcon = document.getElementById('syncIcon');
+      const statusLabel = document.getElementById('cloudStatus');
+      syncIcon.classList.add('animate-spin');
+      statusLabel.textContent = 'Synchronisiere...';
+
+      try {
+        // WICHTIG: text/plain verhindert blockierenden CORS-Preflight bei Google Apps Script!
+        const response = await fetch(state.scriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ active_items: state.items })
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'success' && Array.isArray(result.active_items)) {
+          // Niemals leeren, wenn Server leer antwortet aber lokal Items da sind
+          if (result.active_items.length > 0 || state.items.length === 0) {
+            state.items = result.active_items;
+            saveLocal();
+          }
+          statusLabel.textContent = 'Cloud ✓';
+          render();
+        } else {
+          throw new Error(result.message || 'Serverfehler');
+        }
+      } catch (err) {
+        console.warn('Sync Fehler:', err);
+        statusLabel.textContent = 'Offline (Lokal)';
+      } finally {
+        syncIcon.classList.remove('animate-spin');
+      }
+    }
+
+    // --- EINSTELLUNGEN & RESET ---
+    function openSettings() {
+      document.getElementById('settingsModal').classList.remove('hidden');
+    }
+
+    function closeSettings() {
+      document.getElementById('settingsModal').classList.add('hidden');
+    }
+
+    function saveSettings() {
+      const url = document.getElementById('scriptUrlInput').value.trim();
+      state.scriptUrl = url;
+      localStorage.setItem('sarn_script_url', url);
+      updateCloudStatusText();
+      closeSettings();
+      if (url) syncWithCloud();
+    }
+
+    function updateCloudStatusText() {
+      document.getElementById('cloudStatus').textContent = state.scriptUrl ? 'Cloud bereit' : 'Lokal';
+    }
+
+    function resetCurrentTrip() {
+      if (!confirm('Möchtest du wirklich alle abgehakten Artikel für die nächste Fahrt zurücksetzen?')) return;
+      state.items.forEach(i => {
+        if (i.direction === state.direction) {
+          i.status = 'open';
+          i.updatedAt = new Date().toISOString();
+        }
+      });
+      saveLocal();
+      render();
+      closeSettings();
+      triggerAutoSyncDebounced();
+    }
+
+    // Start
+    init();
+  </script>
+</body>
+</html>
